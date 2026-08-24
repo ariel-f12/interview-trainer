@@ -1,0 +1,30 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+video {
+  width: 100%;
+  max-width: 480px;
+  background: #000;
+  border-radius: 8px;
+}
+
+.error {
+  color: #c0392b;
+}
+
+button {
+  font-size: 16px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  cursor: pointer;
+  width: fit-content;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
