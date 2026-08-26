@@ -11,6 +11,10 @@ video {
   border-radius: 8px;
 }
 
+video.hidden {
+  display: none;
+}
+
 .error {
   color: #c0392b;
 }
@@ -27,4 +31,45 @@ button {
 button:disabled {
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+button.active {
+  border-color: #333;
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.track-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.preset-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.preset-group input[type='number'] {
+  width: 64px;
+  font-size: 16px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+.question-card {
+  font-size: 20px;
+  max-width: 480px;
+}
+
+.countdown {
+  font-size: 32px;
+  font-weight: 600;
 }

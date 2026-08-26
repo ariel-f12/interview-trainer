@@ -1,20 +1,30 @@
 import { useEffect, useRef, useState } from 'react'
 import './App.css'
+import { ConsentGate } from './components/ConsentGate'
+import { TrackSelect } from './components/TrackSelect'
+import { DurationConfig } from './components/DurationConfig'
+import { QuestionStage } from './components/QuestionStage'
+import { PrepStage } from './components/PrepStage'
+import { RecordingStage } from './components/RecordingStage'
+import { ReviewStage } from './components/ReviewStage'
+import { pickRandomQuestion } from './data/questions'
+import type { Stage } from './types'
 
-const RECORDING_DURATION_MS = 10_000
+const CONSENT_KEY = 'interview-trainer:consent'
 
 function App() {
+  const [hasConsented, setHasConsented] = useState(
+    () => localStorage.getItem(CONSENT_KEY) === 'true',
+  )
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [permissionError, setPermissionError] = useState<string | null>(null)
-  const [isRecording, setIsRecording] = useState(false)
-  const [recordedUrl, setRecordedUrl] = useState<string | null>(null)
+  const [stage, setStage] = useState<Stage>({ name: 'track-select' })
 
   const videoRef = useRef<HTMLVideoElement | null>(null)
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const chunksRef = useRef<Blob[]>([])
-  const stopTimeoutRef = useRef<number | null>(null)
 
   useEffect(() => {
+    if (!hasConsented) return
+
     let activeStream: MediaStream | null = null
 
     navigator.mediaDevices
@@ -27,14 +37,8 @@ function App() {
 
     return () => {
       activeStream?.getTracks().forEach((track) => track.stop())
-      if (stopTimeoutRef.current !== null) {
-        clearTimeout(stopTimeoutRef.current)
-      }
-      if (mediaRecorderRef.current?.state === 'recording') {
-        mediaRecorderRef.current.stop()
-      }
     }
-  }, [])
+  }, [hasConsented])
 
   useEffect(() => {
     if (videoRef.current) {
@@ -42,44 +46,40 @@ function App() {
     }
   }, [stream])
 
-  useEffect(() => {
-    return () => {
-      if (recordedUrl) {
-        URL.revokeObjectURL(recordedUrl)
-      }
+  const acceptConsent = () => {
+    localStorage.setItem(CONSENT_KEY, 'true')
+    setHasConsented(true)
+  }
+
+  const resetToStart = () => {
+    if (stage.name === 'review') {
+      URL.revokeObjectURL(stage.recordedUrl)
     }
-  }, [recordedUrl])
+    setStage({ name: 'track-select' })
+  }
 
-  const startRecording = () => {
-    if (!stream) return
+  const rerecord = () => {
+    if (stage.name !== 'review') return
+    URL.revokeObjectURL(stage.recordedUrl)
+    setStage(
+      stage.prepSeconds > 0
+        ? {
+            name: 'prep',
+            prepSeconds: stage.prepSeconds,
+            answerSeconds: stage.answerSeconds,
+            question: stage.question,
+          }
+        : {
+            name: 'recording',
+            prepSeconds: stage.prepSeconds,
+            answerSeconds: stage.answerSeconds,
+            question: stage.question,
+          },
+    )
+  }
 
-    if (recordedUrl) {
-      URL.revokeObjectURL(recordedUrl)
-      setRecordedUrl(null)
-    }
-
-    chunksRef.current = []
-    const mediaRecorder = new MediaRecorder(stream)
-    mediaRecorderRef.current = mediaRecorder
-
-    mediaRecorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        chunksRef.current.push(event.data)
-      }
-    }
-
-    mediaRecorder.onstop = () => {
-      const blob = new Blob(chunksRef.current, { type: 'video/webm' })
-      setRecordedUrl(URL.createObjectURL(blob))
-      setIsRecording(false)
-    }
-
-    mediaRecorder.start()
-    setIsRecording(true)
-
-    stopTimeoutRef.current = window.setTimeout(() => {
-      mediaRecorder.stop()
-    }, RECORDING_DURATION_MS)
+  if (!hasConsented) {
+    return <ConsentGate onAccept={acceptConsent} />
   }
 
   if (permissionError) {
@@ -92,22 +92,104 @@ function App() {
     )
   }
 
+  const showPreview = stage.name === 'prep' || stage.name === 'recording'
+
   return (
     <div className="app">
       <h1>Interview Trainer</h1>
-      <video ref={videoRef} autoPlay muted playsInline />
-      <button
-        type="button"
-        onClick={startRecording}
-        disabled={!stream || isRecording}
-      >
-        {isRecording ? 'Recording…' : 'Record 10s clip'}
-      </button>
-      {recordedUrl && (
-        <>
-          <h2>Playback</h2>
-          <video src={recordedUrl} controls />
-        </>
+      <video
+        ref={videoRef}
+        autoPlay
+        muted
+        playsInline
+        className={showPreview ? undefined : 'hidden'}
+      />
+
+      {stage.name === 'track-select' && (
+        <TrackSelect onSelect={(track) => setStage({ name: 'duration-config', track })} />
+      )}
+
+      {stage.name === 'duration-config' && (
+        <DurationConfig
+          track={stage.track}
+          onSubmit={(prepSeconds, answerSeconds) =>
+            setStage({
+              name: 'question',
+              track: stage.track,
+              prepSeconds,
+              answerSeconds,
+              question: pickRandomQuestion(stage.track),
+            })
+          }
+        />
+      )}
+
+      {stage.name === 'question' && (
+        <QuestionStage
+          track={stage.track}
+          question={stage.question}
+          onReroll={() =>
+            setStage({
+              ...stage,
+              question: pickRandomQuestion(stage.track, stage.question.id),
+            })
+          }
+          onStart={() =>
+            stage.prepSeconds > 0
+              ? setStage({
+                  name: 'prep',
+                  prepSeconds: stage.prepSeconds,
+                  answerSeconds: stage.answerSeconds,
+                  question: stage.question,
+                })
+              : setStage({
+                  name: 'recording',
+                  prepSeconds: stage.prepSeconds,
+                  answerSeconds: stage.answerSeconds,
+                  question: stage.question,
+                })
+          }
+        />
+      )}
+
+      {stage.name === 'prep' && (
+        <PrepStage
+          prepSeconds={stage.prepSeconds}
+          onComplete={() =>
+            setStage({
+              name: 'recording',
+              prepSeconds: stage.prepSeconds,
+              answerSeconds: stage.answerSeconds,
+              question: stage.question,
+            })
+          }
+        />
+      )}
+
+      {stage.name === 'recording' && (
+        <RecordingStage
+          stream={stream}
+          question={stage.question}
+          answerSeconds={stage.answerSeconds}
+          onComplete={(recordedUrl) =>
+            setStage({
+              name: 'review',
+              prepSeconds: stage.prepSeconds,
+              answerSeconds: stage.answerSeconds,
+              question: stage.question,
+              recordedUrl,
+            })
+          }
+        />
+      )}
+
+      {stage.name === 'review' && (
+        <ReviewStage
+          question={stage.question}
+          recordedUrl={stage.recordedUrl}
+          onRestart={resetToStart}
+          onRerecord={rerecord}
+        />
       )}
     </div>
   )
