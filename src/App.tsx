@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import './App.css'
 import { ConsentGate } from './components/ConsentGate'
+import { PrivacyPanel } from './components/PrivacyPanel'
 import { TrackSelect } from './components/TrackSelect'
 import { DurationConfig } from './components/DurationConfig'
 import { QuestionStage } from './components/QuestionStage'
@@ -8,14 +9,24 @@ import { PrepStage } from './components/PrepStage'
 import { RecordingStage } from './components/RecordingStage'
 import { ReviewStage } from './components/ReviewStage'
 import { pickRandomQuestion } from './data/questions'
+import { CONSENT_STORAGE_KEY, CONSENT_VERSION } from './data/consent'
+import type { ConsentRecord } from './data/consent'
 import type { Stage } from './types'
 
-const CONSENT_KEY = 'interview-trainer:consent'
+function readStoredConsent(): boolean {
+  try {
+    const raw = localStorage.getItem(CONSENT_STORAGE_KEY)
+    if (!raw) return false
+    const record = JSON.parse(raw) as Partial<ConsentRecord>
+    return record.version === CONSENT_VERSION
+  } catch {
+    return false
+  }
+}
 
 function App() {
-  const [hasConsented, setHasConsented] = useState(
-    () => localStorage.getItem(CONSENT_KEY) === 'true',
-  )
+  const [hasConsented, setHasConsented] = useState(readStoredConsent)
+  const [showPrivacy, setShowPrivacy] = useState(false)
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [permissionError, setPermissionError] = useState<string | null>(null)
   const [stage, setStage] = useState<Stage>({ name: 'track-select' })
@@ -47,8 +58,24 @@ function App() {
   }, [stream])
 
   const acceptConsent = () => {
-    localStorage.setItem(CONSENT_KEY, 'true')
+    const record: ConsentRecord = {
+      version: CONSENT_VERSION,
+      consentedAt: new Date().toISOString(),
+    }
+    localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify(record))
     setHasConsented(true)
+  }
+
+  const withdrawConsent = () => {
+    localStorage.removeItem(CONSENT_STORAGE_KEY)
+    if (stage.name === 'review') {
+      URL.revokeObjectURL(stage.recordedUrl)
+    }
+    setStage({ name: 'track-select' })
+    setShowPrivacy(false)
+    setStream(null)
+    setPermissionError(null)
+    setHasConsented(false)
   }
 
   const resetToStart = () => {
@@ -82,21 +109,18 @@ function App() {
     return <ConsentGate onAccept={acceptConsent} />
   }
 
-  if (permissionError) {
-    return (
-      <div className="app">
-        <p className="error">
-          Camera/microphone access is required: {permissionError}
-        </p>
-      </div>
-    )
-  }
-
-  const showPreview = stage.name === 'prep' || stage.name === 'recording'
+  const showPreview = (stage.name === 'prep' || stage.name === 'recording') && !showPrivacy
 
   return (
     <div className="app">
-      <h1>Interview Trainer</h1>
+      <div className="app-header">
+        <h1>Interview Trainer</h1>
+        {!showPrivacy && (
+          <button type="button" className="link-button" onClick={() => setShowPrivacy(true)}>
+            Privacy and data
+          </button>
+        )}
+      </div>
       <video
         ref={videoRef}
         autoPlay
@@ -105,11 +129,19 @@ function App() {
         className={showPreview ? undefined : 'hidden'}
       />
 
-      {stage.name === 'track-select' && (
+      {showPrivacy && (
+        <PrivacyPanel onWithdraw={withdrawConsent} onClose={() => setShowPrivacy(false)} />
+      )}
+
+      {!showPrivacy && permissionError && (
+        <p className="error">Camera/microphone access is required: {permissionError}</p>
+      )}
+
+      {!showPrivacy && !permissionError && stage.name === 'track-select' && (
         <TrackSelect onSelect={(track) => setStage({ name: 'duration-config', track })} />
       )}
 
-      {stage.name === 'duration-config' && (
+      {!showPrivacy && stage.name === 'duration-config' && (
         <DurationConfig
           track={stage.track}
           onSubmit={(prepSeconds, answerSeconds) =>
@@ -124,7 +156,7 @@ function App() {
         />
       )}
 
-      {stage.name === 'question' && (
+      {!showPrivacy && stage.name === 'question' && (
         <QuestionStage
           track={stage.track}
           question={stage.question}
@@ -152,7 +184,7 @@ function App() {
         />
       )}
 
-      {stage.name === 'prep' && (
+      {!showPrivacy && stage.name === 'prep' && (
         <PrepStage
           prepSeconds={stage.prepSeconds}
           onComplete={() =>
@@ -166,7 +198,7 @@ function App() {
         />
       )}
 
-      {stage.name === 'recording' && (
+      {!showPrivacy && stage.name === 'recording' && (
         <RecordingStage
           stream={stream}
           question={stage.question}
@@ -183,7 +215,7 @@ function App() {
         />
       )}
 
-      {stage.name === 'review' && (
+      {!showPrivacy && stage.name === 'review' && (
         <ReviewStage
           question={stage.question}
           recordedUrl={stage.recordedUrl}

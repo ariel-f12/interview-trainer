@@ -23,7 +23,7 @@ export function ReviewStage({
           Rerecord
         </button>
         <button type="button" onClick={onRestart}>
-          Practice again
+          Practice another question
         </button>
       </div>
     </>

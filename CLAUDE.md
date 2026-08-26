@@ -10,6 +10,26 @@ answer under time pressure, then review playback with delivery metrics.
 - Must deploy to GitHub Pages as static files.
 - Recordings never leave the device. IndexedDB only.
 - No dependency that requires a paid tier.
+- No analytics, telemetry, error reporting, or third-party scripts. Ever.
+- Consent notice is versioned. Any change to what data is collected,
+  where it is processed, or how long it is kept requires bumping the
+  version in the consent localStorage key so existing users re-consent.
+
+## Privacy and compliance
+This app processes biometric data (face geometry via MediaPipe) from a
+developer who is an Illinois resident, so it is built to BIPA's notice
+and consent requirements regardless of whether the statute strictly
+applies to a non-commercial tool.
+
+Before adding or changing any data handling, check:
+- Does the consent notice still accurately describe what is collected,
+  where it is processed, and how long it is kept?
+- If not, update the notice text and bump the consent key version.
+- Can the user delete this data? Deletion must ship in the same session
+  as any new storage, never deferred to a later one.
+
+Notice text lives in one exported constant and is rendered by both the
+consent gate and the privacy screen. Do not duplicate it.
 
 ## Stack
 - Vite + React
@@ -33,3 +53,5 @@ Content quality is self-rated by the user, not scored by the app.
   browser API wiring, build config, and styling.
 - If I ask for something that breaks a hard constraint above, say so
   instead of building it.
+- If a change would make the consent notice inaccurate, stop and tell me
+  before building it.
