@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getSessionRecording } from '../db/sessions'
+import { TranscriptBlock } from './TranscriptBlock'
 import type { SessionSummary } from '../db/sessions'
 
 interface SessionPlaybackProps {
@@ -52,6 +53,10 @@ export function SessionPlayback({ session, onClose }: SessionPlaybackProps) {
       {loadError && <p className="error">{loadError}</p>}
       {!loadError && !url && <p>Loading…</p>}
       {url && <video src={url} controls />}
+      <TranscriptBlock
+        transcript={session.transcript}
+        transcriptSource={session.transcriptSource}
+      />
     </div>
   )
 }

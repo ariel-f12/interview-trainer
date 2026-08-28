@@ -14,6 +14,7 @@ answer under time pressure, then review playback with delivery metrics.
 - Consent notice is versioned. Any change to what data is collected,
   where it is processed, or how long it is kept requires bumping the
   version in the consent localStorage key so existing users re-consent.
+- Speech recognition is on-device only. Never set processLocally = false or fall back to a cloud speech service under any circumstance.
 
 ## Privacy and compliance
 This app processes biometric data (face geometry via MediaPipe) from a

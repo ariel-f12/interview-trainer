@@ -14,16 +14,32 @@ export type Stage =
       track: Track
       prepSeconds: number
       answerSeconds: number
+      transcriptionEnabled: boolean
       question: Question
     }
-  | { name: 'prep'; prepSeconds: number; answerSeconds: number; question: Question }
-  | { name: 'recording'; prepSeconds: number; answerSeconds: number; question: Question }
+  | {
+      name: 'prep'
+      prepSeconds: number
+      answerSeconds: number
+      transcriptionEnabled: boolean
+      question: Question
+    }
+  | {
+      name: 'recording'
+      prepSeconds: number
+      answerSeconds: number
+      transcriptionEnabled: boolean
+      question: Question
+    }
   | {
       name: 'review'
       prepSeconds: number
       answerSeconds: number
+      transcriptionEnabled: boolean
       question: Question
       recording: Blob
       actualDurationSeconds: number
       saveStatus: 'saving' | 'saved' | 'error'
+      transcript: string
+      transcriptSource: 'on-device' | 'none'
     }

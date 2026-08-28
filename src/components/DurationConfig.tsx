@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { DEFAULT_DURATIONS } from '../data/questions'
+import { SpeechAvailability } from './SpeechAvailability'
 import type { Track } from '../types'
 
 const PREP_PRESETS = [0, 30, 45, 60]
@@ -9,7 +10,7 @@ const MAX_ANSWER_SECONDS = 300
 
 interface DurationConfigProps {
   track: Track
-  onSubmit: (prepSeconds: number, answerSeconds: number) => void
+  onSubmit: (prepSeconds: number, answerSeconds: number, transcriptionEnabled: boolean) => void
 }
 
 function clampAnswerSeconds(value: number): number {
@@ -21,14 +22,19 @@ export function DurationConfig({ track, onSubmit }: DurationConfigProps) {
   const defaults = DEFAULT_DURATIONS[track]
   const [prepSeconds, setPrepSeconds] = useState(defaults.prepSeconds)
   const [answerSeconds, setAnswerSeconds] = useState(defaults.answerSeconds)
+  const [transcriptionEnabled, setTranscriptionEnabled] = useState(false)
 
   return (
     <>
       <h1>Set your time</h1>
 
+      <SpeechAvailability onChange={setTranscriptionEnabled} />
+
       <button
         type="button"
-        onClick={() => onSubmit(defaults.prepSeconds, defaults.answerSeconds)}
+        onClick={() =>
+          onSubmit(defaults.prepSeconds, defaults.answerSeconds, transcriptionEnabled)
+        }
       >
         Use defaults ({defaults.prepSeconds}s prep / {Math.round(defaults.answerSeconds / 60)}
         min answer)
@@ -82,7 +88,9 @@ export function DurationConfig({ track, onSubmit }: DurationConfigProps) {
 
       <button
         type="button"
-        onClick={() => onSubmit(prepSeconds, clampAnswerSeconds(answerSeconds))}
+        onClick={() =>
+          onSubmit(prepSeconds, clampAnswerSeconds(answerSeconds), transcriptionEnabled)
+        }
       >
         Continue
       </button>

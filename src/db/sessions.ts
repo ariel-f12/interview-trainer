@@ -13,6 +13,8 @@ export interface SessionRecord {
   answerSeconds: number
   actualDurationSeconds: number
   recording: Blob
+  transcript: string
+  transcriptSource: 'on-device' | 'none'
 }
 
 export type SessionSummary = Omit<SessionRecord, 'recording'>
@@ -25,6 +27,8 @@ export interface NewSession {
   answerSeconds: number
   actualDurationSeconds: number
   recording: Blob
+  transcript: string
+  transcriptSource: 'on-device' | 'none'
 }
 
 export type DbResult<T> = { ok: true; value: T } | { ok: false; error: string }
@@ -72,6 +76,9 @@ async function getAllSummariesRaw(db: IDBPDatabase<SessionsDB>): Promise<Session
       prepSeconds: record.prepSeconds,
       answerSeconds: record.answerSeconds,
       actualDurationSeconds: record.actualDurationSeconds,
+      // Records saved before transcription shipped won't have these keys at all.
+      transcript: record.transcript ?? '',
+      transcriptSource: record.transcriptSource ?? 'none',
     })
     cursor = await cursor.continue()
   }

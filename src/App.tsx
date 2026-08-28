@@ -92,12 +92,14 @@ function App() {
             name: 'prep',
             prepSeconds: stage.prepSeconds,
             answerSeconds: stage.answerSeconds,
+            transcriptionEnabled: stage.transcriptionEnabled,
             question: stage.question,
           }
         : {
             name: 'recording',
             prepSeconds: stage.prepSeconds,
             answerSeconds: stage.answerSeconds,
+            transcriptionEnabled: stage.transcriptionEnabled,
             question: stage.question,
           },
     )
@@ -163,12 +165,13 @@ function App() {
       {activeOverlay === 'none' && stage.name === 'duration-config' && (
         <DurationConfig
           track={stage.track}
-          onSubmit={(prepSeconds, answerSeconds) =>
+          onSubmit={(prepSeconds, answerSeconds, transcriptionEnabled) =>
             setStage({
               name: 'question',
               track: stage.track,
               prepSeconds,
               answerSeconds,
+              transcriptionEnabled,
               question: pickRandomQuestion(stage.track),
             })
           }
@@ -191,12 +194,14 @@ function App() {
                   name: 'prep',
                   prepSeconds: stage.prepSeconds,
                   answerSeconds: stage.answerSeconds,
+                  transcriptionEnabled: stage.transcriptionEnabled,
                   question: stage.question,
                 })
               : setStage({
                   name: 'recording',
                   prepSeconds: stage.prepSeconds,
                   answerSeconds: stage.answerSeconds,
+                  transcriptionEnabled: stage.transcriptionEnabled,
                   question: stage.question,
                 })
           }
@@ -211,6 +216,7 @@ function App() {
               name: 'recording',
               prepSeconds: stage.prepSeconds,
               answerSeconds: stage.answerSeconds,
+              transcriptionEnabled: stage.transcriptionEnabled,
               question: stage.question,
             })
           }
@@ -222,15 +228,23 @@ function App() {
           stream={stream}
           question={stage.question}
           answerSeconds={stage.answerSeconds}
-          onComplete={(recording, actualDurationSeconds) => {
+          transcriptionEnabled={stage.transcriptionEnabled}
+          onComplete={(recording, actualDurationSeconds, transcript, transcriptionRan) => {
+            const transcriptSource: 'on-device' | 'none' = transcriptionRan
+              ? 'on-device'
+              : 'none'
+
             setStage({
               name: 'review',
               prepSeconds: stage.prepSeconds,
               answerSeconds: stage.answerSeconds,
+              transcriptionEnabled: stage.transcriptionEnabled,
               question: stage.question,
               recording,
               actualDurationSeconds,
               saveStatus: 'saving',
+              transcript,
+              transcriptSource,
             })
 
             saveSession({
@@ -241,6 +255,8 @@ function App() {
               answerSeconds: stage.answerSeconds,
               actualDurationSeconds,
               recording,
+              transcript,
+              transcriptSource,
             }).then((result) => {
               setStage((current) =>
                 current.name === 'review' && current.recording === recording
@@ -257,6 +273,8 @@ function App() {
           question={stage.question}
           recording={stage.recording}
           saveStatus={stage.saveStatus}
+          transcript={stage.transcript}
+          transcriptSource={stage.transcriptSource}
           onRestart={resetToStart}
           onRerecord={rerecord}
         />
