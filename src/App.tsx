@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import './App.css'
 import { ConsentGate } from './components/ConsentGate'
 import { PrivacyPanel } from './components/PrivacyPanel'
+import { HistoryScreen } from './components/HistoryScreen'
 import { TrackSelect } from './components/TrackSelect'
 import { DurationConfig } from './components/DurationConfig'
 import { QuestionStage } from './components/QuestionStage'
@@ -11,7 +12,10 @@ import { ReviewStage } from './components/ReviewStage'
 import { pickRandomQuestion } from './data/questions'
 import { CONSENT_STORAGE_KEY, CONSENT_VERSION } from './data/consent'
 import type { ConsentRecord } from './data/consent'
+import { clearAllSessions, saveSession } from './db/sessions'
 import type { Stage } from './types'
+
+type Overlay = 'none' | 'privacy' | 'history'
 
 function readStoredConsent(): boolean {
   try {
@@ -26,7 +30,7 @@ function readStoredConsent(): boolean {
 
 function App() {
   const [hasConsented, setHasConsented] = useState(readStoredConsent)
-  const [showPrivacy, setShowPrivacy] = useState(false)
+  const [activeOverlay, setActiveOverlay] = useState<Overlay>('none')
   const [stream, setStream] = useState<MediaStream | null>(null)
   const [permissionError, setPermissionError] = useState<string | null>(null)
   const [stage, setStage] = useState<Stage>({ name: 'track-select' })
@@ -68,26 +72,20 @@ function App() {
 
   const withdrawConsent = () => {
     localStorage.removeItem(CONSENT_STORAGE_KEY)
-    if (stage.name === 'review') {
-      URL.revokeObjectURL(stage.recordedUrl)
-    }
+    clearAllSessions()
     setStage({ name: 'track-select' })
-    setShowPrivacy(false)
+    setActiveOverlay('none')
     setStream(null)
     setPermissionError(null)
     setHasConsented(false)
   }
 
   const resetToStart = () => {
-    if (stage.name === 'review') {
-      URL.revokeObjectURL(stage.recordedUrl)
-    }
     setStage({ name: 'track-select' })
   }
 
   const rerecord = () => {
     if (stage.name !== 'review') return
-    URL.revokeObjectURL(stage.recordedUrl)
     setStage(
       stage.prepSeconds > 0
         ? {
@@ -109,14 +107,19 @@ function App() {
     return <ConsentGate onAccept={acceptConsent} />
   }
 
-  const showPreview = (stage.name === 'prep' || stage.name === 'recording') && !showPrivacy
+  const showPreview =
+    (stage.name === 'prep' || stage.name === 'recording') && activeOverlay === 'none'
 
   return (
     <div className="app">
       <div className="app-header">
         <h1>Interview Trainer</h1>
-        {!showPrivacy && (
-          <button type="button" className="link-button" onClick={() => setShowPrivacy(true)}>
+        {activeOverlay === 'none' && (
+          <button
+            type="button"
+            className="link-button"
+            onClick={() => setActiveOverlay('privacy')}
+          >
             Privacy and data
           </button>
         )}
@@ -129,19 +132,35 @@ function App() {
         className={showPreview ? undefined : 'hidden'}
       />
 
-      {showPrivacy && (
-        <PrivacyPanel onWithdraw={withdrawConsent} onClose={() => setShowPrivacy(false)} />
+      {activeOverlay === 'privacy' && (
+        <PrivacyPanel
+          onWithdraw={withdrawConsent}
+          onClose={() => setActiveOverlay('none')}
+        />
       )}
 
-      {!showPrivacy && permissionError && (
+      {activeOverlay === 'history' && (
+        <HistoryScreen onClose={() => setActiveOverlay('none')} />
+      )}
+
+      {activeOverlay === 'none' && permissionError && (
         <p className="error">Camera/microphone access is required: {permissionError}</p>
       )}
 
-      {!showPrivacy && !permissionError && stage.name === 'track-select' && (
-        <TrackSelect onSelect={(track) => setStage({ name: 'duration-config', track })} />
+      {activeOverlay === 'none' && !permissionError && stage.name === 'track-select' && (
+        <>
+          <TrackSelect onSelect={(track) => setStage({ name: 'duration-config', track })} />
+          <button
+            type="button"
+            className="link-button"
+            onClick={() => setActiveOverlay('history')}
+          >
+            Past sessions
+          </button>
+        </>
       )}
 
-      {!showPrivacy && stage.name === 'duration-config' && (
+      {activeOverlay === 'none' && stage.name === 'duration-config' && (
         <DurationConfig
           track={stage.track}
           onSubmit={(prepSeconds, answerSeconds) =>
@@ -156,7 +175,7 @@ function App() {
         />
       )}
 
-      {!showPrivacy && stage.name === 'question' && (
+      {activeOverlay === 'none' && stage.name === 'question' && (
         <QuestionStage
           track={stage.track}
           question={stage.question}
@@ -184,7 +203,7 @@ function App() {
         />
       )}
 
-      {!showPrivacy && stage.name === 'prep' && (
+      {activeOverlay === 'none' && stage.name === 'prep' && (
         <PrepStage
           prepSeconds={stage.prepSeconds}
           onComplete={() =>
@@ -198,27 +217,46 @@ function App() {
         />
       )}
 
-      {!showPrivacy && stage.name === 'recording' && (
+      {activeOverlay === 'none' && stage.name === 'recording' && (
         <RecordingStage
           stream={stream}
           question={stage.question}
           answerSeconds={stage.answerSeconds}
-          onComplete={(recordedUrl) =>
+          onComplete={(recording, actualDurationSeconds) => {
             setStage({
               name: 'review',
               prepSeconds: stage.prepSeconds,
               answerSeconds: stage.answerSeconds,
               question: stage.question,
-              recordedUrl,
+              recording,
+              actualDurationSeconds,
+              saveStatus: 'saving',
             })
-          }
+
+            saveSession({
+              questionId: stage.question.id,
+              questionText: stage.question.text,
+              track: stage.question.track,
+              prepSeconds: stage.prepSeconds,
+              answerSeconds: stage.answerSeconds,
+              actualDurationSeconds,
+              recording,
+            }).then((result) => {
+              setStage((current) =>
+                current.name === 'review' && current.recording === recording
+                  ? { ...current, saveStatus: result.ok ? 'saved' : 'error' }
+                  : current,
+              )
+            })
+          }}
         />
       )}
 
-      {!showPrivacy && stage.name === 'review' && (
+      {activeOverlay === 'none' && stage.name === 'review' && (
         <ReviewStage
           question={stage.question}
-          recordedUrl={stage.recordedUrl}
+          recording={stage.recording}
+          saveStatus={stage.saveStatus}
           onRestart={resetToStart}
           onRerecord={rerecord}
         />

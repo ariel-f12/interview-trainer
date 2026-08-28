@@ -6,7 +6,7 @@ interface RecordingStageProps {
   stream: MediaStream | null
   question: Question
   answerSeconds: number
-  onComplete: (recordedUrl: string) => void
+  onComplete: (recording: Blob, actualDurationSeconds: number) => void
 }
 
 export function RecordingStage({
@@ -43,9 +43,11 @@ export function RecordingStage({
     mediaRecorder.onstop = () => {
       if (discardRef.current) return
       const blob = new Blob(chunks, { type: 'video/webm' })
-      onComplete(URL.createObjectURL(blob))
+      const actualDurationSeconds = Math.round((Date.now() - startTime) / 1000)
+      onComplete(blob, actualDurationSeconds)
     }
 
+    const startTime = Date.now()
     mediaRecorder.start()
 
     return () => {

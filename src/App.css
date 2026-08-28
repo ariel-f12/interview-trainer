@@ -103,3 +103,72 @@ button.active {
   font-size: 32px;
   font-weight: 600;
 }
+
+.save-status {
+  font-size: 14px;
+  color: #555;
+}
+
+.save-status.error {
+  color: #c0392b;
+}
+
+.history-screen,
+.session-playback {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.history-group {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.history-group-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  background: none;
+  border: none;
+  padding: 0;
+  width: 100%;
+  text-align: left;
+}
+
+.history-group-header span {
+  font-size: 13px;
+  color: #666;
+}
+
+.history-group-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #eee;
+}
+
+.session-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.confirm-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 14px;
+}
+
+.clear-all {
+  margin-top: 8px;
+}

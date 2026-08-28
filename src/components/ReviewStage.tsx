@@ -1,23 +1,42 @@
+import { useEffect, useState } from 'react'
 import type { Question } from '../types'
 
 interface ReviewStageProps {
   question: Question
-  recordedUrl: string
+  recording: Blob
+  saveStatus: 'saving' | 'saved' | 'error'
   onRestart: () => void
   onRerecord: () => void
 }
 
 export function ReviewStage({
   question,
-  recordedUrl,
+  recording,
+  saveStatus,
   onRestart,
   onRerecord,
 }: ReviewStageProps) {
+  const [url, setUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    const objectUrl = URL.createObjectURL(recording)
+    queueMicrotask(() => setUrl(objectUrl))
+    return () => URL.revokeObjectURL(objectUrl)
+  }, [recording])
+
   return (
     <>
       <h1>Playback</h1>
       <p className="question-card">{question.text}</p>
-      <video src={recordedUrl} controls />
+      {url && <video src={url} controls />}
+      {saveStatus === 'saving' && <p className="save-status">Saving…</p>}
+      {saveStatus === 'saved' && <p className="save-status">Saved to history.</p>}
+      {saveStatus === 'error' && (
+        <p className="save-status error">
+          Couldn't save this recording to history (storage may be full or unavailable). You can
+          still watch it now, but it won't be saved once you leave this screen.
+        </p>
+      )}
       <div className="actions">
         <button type="button" onClick={onRerecord}>
           Rerecord

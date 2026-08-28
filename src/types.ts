@@ -23,5 +23,7 @@ export type Stage =
       prepSeconds: number
       answerSeconds: number
       question: Question
-      recordedUrl: string
+      recording: Blob
+      actualDurationSeconds: number
+      saveStatus: 'saving' | 'saved' | 'error'
     }
