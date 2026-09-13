@@ -172,3 +172,17 @@ button.active {
 .clear-all {
   margin-top: 8px;
 }
+
+.whisper-setup {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 480px;
+}
+
+.whisper-setup progress {
+  width: 100%;
+  max-width: 320px;
+  height: 12px;
+}

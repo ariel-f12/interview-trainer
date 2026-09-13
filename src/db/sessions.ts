@@ -1,6 +1,20 @@
 import { openDB } from 'idb'
 import type { DBSchema, IDBPDatabase } from 'idb'
-import type { Track } from '../types'
+import type { Track, TranscriptSource } from '../types'
+
+const KNOWN_TRANSCRIPT_SOURCES: readonly TranscriptSource[] = [
+  'on-device',
+  'on-device-whisper',
+  'none',
+]
+
+// Records predate 'on-device-whisper', and pre-transcription records have
+// no value at all. Anything unrecognised reads back as 'none'.
+function normalizeTranscriptSource(value: unknown): TranscriptSource {
+  return KNOWN_TRANSCRIPT_SOURCES.includes(value as TranscriptSource)
+    ? (value as TranscriptSource)
+    : 'none'
+}
 
 export interface SessionRecord {
   id: string
@@ -14,7 +28,7 @@ export interface SessionRecord {
   actualDurationSeconds: number
   recording: Blob
   transcript: string
-  transcriptSource: 'on-device' | 'none'
+  transcriptSource: TranscriptSource
 }
 
 export type SessionSummary = Omit<SessionRecord, 'recording'>
@@ -28,7 +42,7 @@ export interface NewSession {
   actualDurationSeconds: number
   recording: Blob
   transcript: string
-  transcriptSource: 'on-device' | 'none'
+  transcriptSource: TranscriptSource
 }
 
 export type DbResult<T> = { ok: true; value: T } | { ok: false; error: string }
@@ -78,7 +92,7 @@ async function getAllSummariesRaw(db: IDBPDatabase<SessionsDB>): Promise<Session
       actualDurationSeconds: record.actualDurationSeconds,
       // Records saved before transcription shipped won't have these keys at all.
       transcript: record.transcript ?? '',
-      transcriptSource: record.transcriptSource ?? 'none',
+      transcriptSource: normalizeTranscriptSource(record.transcriptSource),
     })
     cursor = await cursor.continue()
   }
@@ -106,6 +120,19 @@ export async function getAllSessionSummaries(): Promise<DbResult<SessionSummary[
   return attempt(async () => {
     const db = await getDb()
     return getAllSummariesRaw(db)
+  })
+}
+
+export async function updateSessionTranscript(
+  id: string,
+  transcript: string,
+  transcriptSource: TranscriptSource,
+): Promise<DbResult<void>> {
+  return attempt(async () => {
+    const db = await getDb()
+    const record = await db.get('sessions', id)
+    if (!record) return
+    await db.put('sessions', { ...record, transcript, transcriptSource })
   })
 }
 

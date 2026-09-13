@@ -12,7 +12,8 @@ import { ReviewStage } from './components/ReviewStage'
 import { pickRandomQuestion } from './data/questions'
 import { CONSENT_STORAGE_KEY, CONSENT_VERSION } from './data/consent'
 import type { ConsentRecord } from './data/consent'
-import { clearAllSessions, saveSession } from './db/sessions'
+import { clearAllSessions, saveSession, updateSessionTranscript } from './db/sessions'
+import { removeWhisperModel, transcribeBlob } from './speech/whisperTranscriber'
 import type { Stage } from './types'
 
 type Overlay = 'none' | 'privacy' | 'history'
@@ -36,6 +37,7 @@ function App() {
   const [stage, setStage] = useState<Stage>({ name: 'track-select' })
 
   const videoRef = useRef<HTMLVideoElement | null>(null)
+  const whisperAbortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     if (!hasConsented) return
@@ -61,6 +63,44 @@ function App() {
     }
   }, [stream])
 
+  const cancelWhisper = () => {
+    whisperAbortRef.current?.abort()
+    whisperAbortRef.current = null
+  }
+
+  // Runs after recording, off the saved blob, only in 'whisper' mode.
+  const runWhisper = (recording: Blob, sessionId: string | null) => {
+    cancelWhisper()
+    const controller = new AbortController()
+    whisperAbortRef.current = controller
+
+    transcribeBlob(recording, undefined, controller.signal)
+      .then((text) => {
+        if (controller.signal.aborted) return
+        setStage((current) =>
+          current.name === 'review' && current.recording === recording
+            ? {
+                ...current,
+                transcript: text,
+                transcriptSource: 'on-device-whisper',
+                whisperStatus: 'done',
+              }
+            : current,
+        )
+        if (sessionId) {
+          updateSessionTranscript(sessionId, text, 'on-device-whisper')
+        }
+      })
+      .catch(() => {
+        if (controller.signal.aborted) return
+        setStage((current) =>
+          current.name === 'review' && current.recording === recording
+            ? { ...current, whisperStatus: 'error' }
+            : current,
+        )
+      })
+  }
+
   const acceptConsent = () => {
     const record: ConsentRecord = {
       version: CONSENT_VERSION,
@@ -71,8 +111,10 @@ function App() {
   }
 
   const withdrawConsent = () => {
+    cancelWhisper()
     localStorage.removeItem(CONSENT_STORAGE_KEY)
     clearAllSessions()
+    removeWhisperModel()
     setStage({ name: 'track-select' })
     setActiveOverlay('none')
     setStream(null)
@@ -81,25 +123,27 @@ function App() {
   }
 
   const resetToStart = () => {
+    cancelWhisper()
     setStage({ name: 'track-select' })
   }
 
   const rerecord = () => {
     if (stage.name !== 'review') return
+    cancelWhisper()
     setStage(
       stage.prepSeconds > 0
         ? {
             name: 'prep',
             prepSeconds: stage.prepSeconds,
             answerSeconds: stage.answerSeconds,
-            transcriptionEnabled: stage.transcriptionEnabled,
+            transcriptionMode: stage.transcriptionMode,
             question: stage.question,
           }
         : {
             name: 'recording',
             prepSeconds: stage.prepSeconds,
             answerSeconds: stage.answerSeconds,
-            transcriptionEnabled: stage.transcriptionEnabled,
+            transcriptionMode: stage.transcriptionMode,
             question: stage.question,
           },
     )
@@ -165,13 +209,13 @@ function App() {
       {activeOverlay === 'none' && stage.name === 'duration-config' && (
         <DurationConfig
           track={stage.track}
-          onSubmit={(prepSeconds, answerSeconds, transcriptionEnabled) =>
+          onSubmit={(prepSeconds, answerSeconds, transcriptionMode) =>
             setStage({
               name: 'question',
               track: stage.track,
               prepSeconds,
               answerSeconds,
-              transcriptionEnabled,
+              transcriptionMode,
               question: pickRandomQuestion(stage.track),
             })
           }
@@ -194,14 +238,14 @@ function App() {
                   name: 'prep',
                   prepSeconds: stage.prepSeconds,
                   answerSeconds: stage.answerSeconds,
-                  transcriptionEnabled: stage.transcriptionEnabled,
+                  transcriptionMode: stage.transcriptionMode,
                   question: stage.question,
                 })
               : setStage({
                   name: 'recording',
                   prepSeconds: stage.prepSeconds,
                   answerSeconds: stage.answerSeconds,
-                  transcriptionEnabled: stage.transcriptionEnabled,
+                  transcriptionMode: stage.transcriptionMode,
                   question: stage.question,
                 })
           }
@@ -216,7 +260,7 @@ function App() {
               name: 'recording',
               prepSeconds: stage.prepSeconds,
               answerSeconds: stage.answerSeconds,
-              transcriptionEnabled: stage.transcriptionEnabled,
+              transcriptionMode: stage.transcriptionMode,
               question: stage.question,
             })
           }
@@ -228,23 +272,22 @@ function App() {
           stream={stream}
           question={stage.question}
           answerSeconds={stage.answerSeconds}
-          transcriptionEnabled={stage.transcriptionEnabled}
-          onComplete={(recording, actualDurationSeconds, transcript, transcriptionRan) => {
-            const transcriptSource: 'on-device' | 'none' = transcriptionRan
-              ? 'on-device'
-              : 'none'
+          transcriptionMode={stage.transcriptionMode}
+          onComplete={(recording, actualDurationSeconds, transcript, transcriptSource) => {
+            const runsWhisper = stage.transcriptionMode === 'whisper'
 
             setStage({
               name: 'review',
               prepSeconds: stage.prepSeconds,
               answerSeconds: stage.answerSeconds,
-              transcriptionEnabled: stage.transcriptionEnabled,
+              transcriptionMode: stage.transcriptionMode,
               question: stage.question,
               recording,
               actualDurationSeconds,
               saveStatus: 'saving',
               transcript,
               transcriptSource,
+              whisperStatus: runsWhisper ? 'running' : 'skipped',
             })
 
             saveSession({
@@ -263,6 +306,9 @@ function App() {
                   ? { ...current, saveStatus: result.ok ? 'saved' : 'error' }
                   : current,
               )
+              if (runsWhisper) {
+                runWhisper(recording, result.ok ? result.value.id : null)
+              }
             })
           }}
         />
@@ -275,6 +321,7 @@ function App() {
           saveStatus={stage.saveStatus}
           transcript={stage.transcript}
           transcriptSource={stage.transcriptSource}
+          whisperStatus={stage.whisperStatus}
           onRestart={resetToStart}
           onRerecord={rerecord}
         />

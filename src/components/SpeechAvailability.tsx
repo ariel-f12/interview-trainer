@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { checkAvailability, installLanguagePack } from '../speech/availability'
+import { WhisperSetup } from './WhisperSetup'
+import type { TranscriptionMode } from '../types'
 
 type Status = 'checking' | SpeechRecognitionAvailability | 'requesting-install'
 
 interface SpeechAvailabilityProps {
-  onChange: (enabled: boolean) => void
+  onChange: (mode: TranscriptionMode) => void
 }
 
 export function SpeechAvailability({ onChange }: SpeechAvailabilityProps) {
@@ -15,7 +17,14 @@ export function SpeechAvailability({ onChange }: SpeechAvailabilityProps) {
   }, [])
 
   useEffect(() => {
-    onChange(status === 'available')
+    if (status === 'available') {
+      onChange('web-speech')
+    } else if (status !== 'unavailable') {
+      // 'checking', 'downloadable', 'downloading', 'requesting-install':
+      // Web Speech might become available but isn't yet.
+      onChange('none')
+    }
+    // When 'unavailable', WhisperSetup drives onChange instead.
   }, [status, onChange])
 
   const handleInstall = () => {
@@ -54,9 +63,6 @@ export function SpeechAvailability({ onChange }: SpeechAvailabilityProps) {
     )
   }
 
-  return (
-    <p className="save-status">
-      On-device transcription isn't available in this browser. The app will record without it.
-    </p>
-  )
+  // status === 'unavailable'
+  return <WhisperSetup onModeChange={onChange} />
 }

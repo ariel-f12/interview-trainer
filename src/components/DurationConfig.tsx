@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { DEFAULT_DURATIONS } from '../data/questions'
 import { SpeechAvailability } from './SpeechAvailability'
-import type { Track } from '../types'
+import type { Track, TranscriptionMode } from '../types'
 
 const PREP_PRESETS = [0, 30, 45, 60]
 const ANSWER_PRESETS = [60, 120, 180]
@@ -10,7 +10,11 @@ const MAX_ANSWER_SECONDS = 300
 
 interface DurationConfigProps {
   track: Track
-  onSubmit: (prepSeconds: number, answerSeconds: number, transcriptionEnabled: boolean) => void
+  onSubmit: (
+    prepSeconds: number,
+    answerSeconds: number,
+    transcriptionMode: TranscriptionMode,
+  ) => void
 }
 
 function clampAnswerSeconds(value: number): number {
@@ -22,18 +26,18 @@ export function DurationConfig({ track, onSubmit }: DurationConfigProps) {
   const defaults = DEFAULT_DURATIONS[track]
   const [prepSeconds, setPrepSeconds] = useState(defaults.prepSeconds)
   const [answerSeconds, setAnswerSeconds] = useState(defaults.answerSeconds)
-  const [transcriptionEnabled, setTranscriptionEnabled] = useState(false)
+  const [transcriptionMode, setTranscriptionMode] = useState<TranscriptionMode>('none')
 
   return (
     <>
       <h1>Set your time</h1>
 
-      <SpeechAvailability onChange={setTranscriptionEnabled} />
+      <SpeechAvailability onChange={setTranscriptionMode} />
 
       <button
         type="button"
         onClick={() =>
-          onSubmit(defaults.prepSeconds, defaults.answerSeconds, transcriptionEnabled)
+          onSubmit(defaults.prepSeconds, defaults.answerSeconds, transcriptionMode)
         }
       >
         Use defaults ({defaults.prepSeconds}s prep / {Math.round(defaults.answerSeconds / 60)}
@@ -89,7 +93,7 @@ export function DurationConfig({ track, onSubmit }: DurationConfigProps) {
       <button
         type="button"
         onClick={() =>
-          onSubmit(prepSeconds, clampAnswerSeconds(answerSeconds), transcriptionEnabled)
+          onSubmit(prepSeconds, clampAnswerSeconds(answerSeconds), transcriptionMode)
         }
       >
         Continue

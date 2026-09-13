@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { TranscriptBlock } from './TranscriptBlock'
-import type { Question } from '../types'
+import type { Question, TranscriptSource, WhisperStatus } from '../types'
 
 interface ReviewStageProps {
   question: Question
   recording: Blob
   saveStatus: 'saving' | 'saved' | 'error'
   transcript: string
-  transcriptSource: 'on-device' | 'none'
+  transcriptSource: TranscriptSource
+  whisperStatus: WhisperStatus
   onRestart: () => void
   onRerecord: () => void
 }
@@ -18,6 +19,7 @@ export function ReviewStage({
   saveStatus,
   transcript,
   transcriptSource,
+  whisperStatus,
   onRestart,
   onRerecord,
 }: ReviewStageProps) {
@@ -42,13 +44,17 @@ export function ReviewStage({
           still watch it now, but it won't be saved once you leave this screen.
         </p>
       )}
-      <TranscriptBlock transcript={transcript} transcriptSource={transcriptSource} />
+      <TranscriptBlock
+        transcript={transcript}
+        transcriptSource={transcriptSource}
+        whisperStatus={whisperStatus}
+      />
       <div className="actions">
         <button type="button" onClick={onRerecord}>
           Rerecord
         </button>
         <button type="button" onClick={onRestart}>
-          Practice another question
+          Home
         </button>
       </div>
     </>

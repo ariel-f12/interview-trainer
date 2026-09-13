@@ -1,18 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { useCountdown } from '../hooks/useCountdown'
 import { getSpeechRecognitionConstructor } from '../speech/availability'
-import type { Question } from '../types'
+import type { Question, TranscriptionMode, TranscriptSource } from '../types'
 
 interface RecordingStageProps {
   stream: MediaStream | null
   question: Question
   answerSeconds: number
-  transcriptionEnabled: boolean
+  transcriptionMode: TranscriptionMode
   onComplete: (
     recording: Blob,
     actualDurationSeconds: number,
     transcript: string,
-    transcriptionRan: boolean,
+    transcriptSource: TranscriptSource,
   ) => void
 }
 
@@ -27,7 +27,7 @@ export function RecordingStage({
   stream,
   question,
   answerSeconds,
-  transcriptionEnabled,
+  transcriptionMode,
   onComplete,
 }: RecordingStageProps) {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -51,8 +51,12 @@ export function RecordingStage({
     }
     mediaRecorderRef.current = mediaRecorder
 
-    let transcriptionRan = false
-    if (transcriptionEnabled) {
+    // Web Speech runs live, during recording. Whisper (transcriptionMode
+    // 'whisper') runs afterwards, off the recorded blob, so nothing but
+    // the timer is on screen while recording — it's handled by App on the
+    // review screen, not here.
+    let webSpeechRan = false
+    if (transcriptionMode === 'web-speech') {
       const Ctor = getSpeechRecognitionConstructor()
       if (Ctor) {
         try {
@@ -69,7 +73,7 @@ export function RecordingStage({
           }
           instance.start()
           recognition = instance
-          transcriptionRan = true
+          webSpeechRan = true
         } catch {
           // e.g. 'language-not-supported' — proceed with recording, no transcript.
           recognition = null
@@ -86,9 +90,11 @@ export function RecordingStage({
     mediaRecorder.onstop = () => {
       recognition?.stop()
       if (discardRef.current) return
-      const blob = new Blob(chunks, { type: 'video/webm' })
+      const blobType = mediaRecorder.mimeType || 'video/webm'
+      const blob = new Blob(chunks, { type: blobType })
       const actualDurationSeconds = Math.round((Date.now() - startTime) / 1000)
-      onComplete(blob, actualDurationSeconds, transcriptRef.current, transcriptionRan)
+      const source: TranscriptSource = webSpeechRan ? 'on-device' : 'none'
+      onComplete(blob, actualDurationSeconds, transcriptRef.current, source)
     }
 
     const startTime = Date.now()
@@ -104,7 +110,7 @@ export function RecordingStage({
       }
       recognition?.abort()
     }
-  }, [stream, transcriptionEnabled, onComplete])
+  }, [stream, transcriptionMode, onComplete])
 
   const secondsLeft = useCountdown(answerSeconds, () => {
     if (mediaRecorderRef.current?.state === 'recording') {
